@@ -1,0 +1,67 @@
+# ==============================================================================
+# 1. ESPECÍFICO DO SEU PROJETO (Estrutura Local)
+# ==============================================================================
+# Ignora arquivos locais de upload e dados minerados temporários
+backend/storage/uploads/*
+# Mantém a pasta de uploads existindo no git, mas vazia
+!backend/storage/uploads/.gitkeep
+
+# Variáveis de ambiente (Segurança)
+.env
+.env.*
+*.env
+backend/.env
+frontend/.env
+
+
+# ==============================================================================
+# 2. BACKEND (Python & Clean Architecture)
+# ==============================================================================
+# Remove todos os caches de compilação do Python espalhados pelo app/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais (caso crie a venv na raiz ou dentro do backend)
+venv/
+.venv/
+env/
+ENV/
+
+# Caches de ferramentas de linting/testes
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# ==============================================================================
+# 3. FRONTEND (Vite / React / Node)
+# ==============================================================================
+# Ignora a pasta gigante de dependências do front
+frontend/node_modules/
+node_modules/
+
+# Pastas de build/distribuição (arquivos gerados para produção)
+frontend/dist/
+frontend/build/
+dist/
+build/
+
+# Logs de erro do ecossistema Node
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+# ==============================================================================
+# 4. FERRAMENTAS E SISTEMA OPERACIONAL
+# ==============================================================================
+# Arquivos de configuração de IDEs
+.vscode/
+.idea/
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
