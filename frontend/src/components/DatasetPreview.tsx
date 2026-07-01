@@ -11,22 +11,48 @@ export function DatasetPreview({ dataset }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!dataset) return;
+    if (!dataset) {
+      setPreview(null);
+      setError(null);
+      return;
+    }
+
     setPreview(null);
     setError(null);
+
     previewDataset(dataset.id)
       .then(setPreview)
-      .catch((err) => setError(err instanceof Error ? err.message : "Erro ao carregar prévia"));
+      .catch((err) => setError(err instanceof Error ? err.message : "Erro ao carregar pré-visualização"));
   }, [dataset]);
 
-  if (!dataset) return null;
+  if (!dataset) {
+    return (
+      <section className="section-block full-width-card" id="pre-visualizacao">
+        <h2>Pré-visualização da Base</h2>
+        <p className="hint">
+          Selecione uma base pré-processada para conferir as primeiras linhas antes de executar a mineração de dados.
+        </p>
+      </section>
+    );
+  }
 
   return (
-    <section className="section-block full-width-card">
-      <h2>Prévia da base</h2>
-      <p><strong>Arquivo:</strong> {dataset.filename}</p>
-      <p><strong>Linhas:</strong> {dataset.rows} | <strong>Colunas:</strong> {dataset.columns.length}</p>
+    <section className="section-block full-width-card" id="pre-visualizacao">
+      <h2>Pré-visualização da Base</h2>
+
+      <div className="dataset-summary">
+        <strong>{dataset.filename}</strong>
+        <span>{dataset.rows} linhas</span>
+        <span>{dataset.columns.length} colunas</span>
+      </div>
+
+      <p className="hint">
+        Confira se o cabeçalho, os valores e a separação das colunas foram interpretados corretamente.
+      </p>
+
       {error && <p className="feedback-message error">{error}</p>}
+      {!preview && !error && <p className="feedback-message">Carregando pré-visualização...</p>}
+
       {preview && (
         <div className="tabela-container">
           <table className="table-metrics">

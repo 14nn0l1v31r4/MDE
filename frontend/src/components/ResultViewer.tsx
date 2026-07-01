@@ -1,7 +1,10 @@
-import type { CSSProperties } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 import type { AnalysisResult } from "../types";
 
-import { downloadChartAsPng, downloadAllChartsAsZip } from "../utils/ChartExport";
+import {
+  downloadChartAsPng,
+  downloadAllChartsAsZip,
+} from "../utils/chartExport";
 
 function getAnalysisTitle(analysisType: string): string {
   const titles: Record<string, string> = {
@@ -88,35 +91,6 @@ const chartPalette = [
   "#0d9488",
   "#94a3b8",
 ];
-function slugifyChartId(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9-_ ]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .toLowerCase();
-}
-
-function getChartElementId(title: string): string {
-  return `chart-${slugifyChartId(title)}`;
-}
-
-async function handleDownloadChart(elementId: string, title: string) {
-  try {
-    await downloadChartAsPng(elementId, title);
-  } catch (error) {
-    alert(error instanceof Error ? error.message : "Erro ao baixar gráfico.");
-  }
-}
-
-async function handleDownloadAllCharts() {
-  try {
-    await downloadAllChartsAsZip();
-  } catch (error) {
-    alert(error instanceof Error ? error.message : "Erro ao baixar gráficos.");
-  }
-}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -216,157 +190,111 @@ function MetricGrid({ cards }: { cards: MetricCard[] }) {
   );
 }
 
-function BarChart({
+
+function ExportableChartCard({
   title,
-  data,
-  valueSuffix = "",
-  showCount = false,
+  className = "",
+  children,
 }: {
   title: string;
-  data: ChartDatum[];
-  valueSuffix?: string;
-  showCount?: boolean;
+  className?: string;
+  children: ReactNode;
 }) {
-  if (data.length === 0) return null;
+  const reactId = useId();
+  const elementId = `chart-export-${reactId.replace(/:/g, "")}`;
 
-  const max = Math.max(...data.map((item) => Math.abs(item.value)), 1);
-  const chartId = getChartElementId(title);
+  async function handleDownloadChart() {
+    try {
+      await downloadChartAsPng(elementId, title);
+    } catch (error) {
+      console.error(error);
+      alert("Não foi possível baixar este gráfico.");
+    }
+  }
 
   return (
     <div className="chart-card-wrapper">
       <div
-        id={chartId}
-        className="chart-card"
+        id={elementId}
+        className={`chart-card ${className}`.trim()}
         data-chart-export="true"
         data-chart-title={title}
       >
         <h3>{title}</h3>
-
-        <div className="bar-chart" role="img" aria-label={title}>
-          {data.map((item) => {
-            const width = Math.max((Math.abs(item.value) / max) * 100, 2);
-
-            return (
-              <div className="bar-row" key={item.label}>
-                <span className="bar-label" title={item.label}>
-                  {item.label}
-                </span>
-
-                <div className="bar-track">
-                  <div className="bar-fill" style={{ width: `${width}%` }} />
-                </div>
-
-                <strong>
-                  {formatNumber(item.value)}
-                  {valueSuffix}
-                  {showCount && item.count !== undefined ? (
-                    <small> ({formatNumber(item.count, 0)})</small>
-                  ) : null}
-                </strong>
-              </div>
-            );
-          })}
-        </div>
+        {children}
       </div>
 
       <button
         type="button"
-        className="btn-outline chart-download-button"
-        onClick={() => handleDownloadChart(chartId, title)}
+        className="btn-outline btn-chart-download"
+        onClick={handleDownloadChart}
       >
         Baixar gráfico
       </button>
     </div>
+  );
+}
+
+function BarChart({ title, data, valueSuffix = "", showCount = false }: { title: string; data: ChartDatum[]; valueSuffix?: string; showCount?: boolean }) {
+  if (data.length === 0) return null;
+  const max = Math.max(...data.map((item) => Math.abs(item.value)), 1);
+
+  return (
+    <ExportableChartCard title={title}>
+      <div className="bar-chart" role="img" aria-label={title}>
+        {data.map((item) => {
+          const width = Math.max((Math.abs(item.value) / max) * 100, 2);
+          return (
+            <div className="bar-row" key={item.label}>
+              <span className="bar-label" title={item.label}>{item.label}</span>
+              <div className="bar-track">
+                <div className="bar-fill" style={{ width: `${width}%` }} />
+              </div>
+              <strong>
+                {formatNumber(item.value)}{valueSuffix}
+                {showCount && item.count !== undefined ? <small> ({formatNumber(item.count, 0)})</small> : null}
+              </strong>
+            </div>
+          );
+        })}
+      </div>
+    </ExportableChartCard>
   );
 }
 
 function PieChart({ title, data }: { title: string; data: ChartDatum[] }) {
   if (data.length === 0) return null;
-
-  const total = data.reduce(
-    (sum, item) => sum + Math.max(item.count ?? item.value, 0),
-    0
-  );
-
+  const total = data.reduce((sum, item) => sum + Math.max(item.count ?? item.value, 0), 0);
   let cursor = 0;
-
-  const gradient = data
-    .map((item, index) => {
-      const raw = Math.max(item.count ?? item.value, 0);
-      const start = cursor;
-      const end = total > 0 ? cursor + (raw / total) * 360 : cursor;
-      cursor = end;
-
-      return `${chartPalette[index % chartPalette.length]} ${start}deg ${end}deg`;
-    })
-    .join(", ");
-
-  const chartId = getChartElementId(title);
+  const gradient = data.map((item, index) => {
+    const raw = Math.max(item.count ?? item.value, 0);
+    const start = cursor;
+    const end = total > 0 ? cursor + (raw / total) * 360 : cursor;
+    cursor = end;
+    return `${chartPalette[index % chartPalette.length]} ${start}deg ${end}deg`;
+  }).join(", ");
 
   return (
-    <div className="chart-card-wrapper">
-      <div
-        id={chartId}
-        className="chart-card pie-card"
-        data-chart-export="true"
-        data-chart-title={title}
-      >
-        <h3>{title}</h3>
-
-        <div className="pie-layout">
-          <div
-            className="pie-visual"
-            style={{ background: `conic-gradient(${gradient})` }}
-            role="img"
-            aria-label={title}
-          />
-
-          <div className="pie-legend">
-            {data.map((item, index) => (
-              <div className="pie-legend-row" key={item.label}>
-                <span
-                  className="legend-dot"
-                  style={
-                    {
-                      "--slice-color":
-                        chartPalette[index % chartPalette.length],
-                    } as CSSProperties
-                  }
-                />
-
-                <span title={item.label}>{item.label}</span>
-
-                <strong>{formatPercent(item.percentage ?? item.value)}</strong>
-
-                {item.count !== undefined ? (
-                  <small>{formatNumber(item.count, 0)} registros</small>
-                ) : null}
-              </div>
-            ))}
-          </div>
+    <ExportableChartCard title={title} className="pie-card">
+      <div className="pie-layout">
+        <div className="pie-visual" style={{ background: `conic-gradient(${gradient})` }} role="img" aria-label={title} />
+        <div className="pie-legend">
+          {data.map((item, index) => (
+            <div className="pie-legend-row" key={item.label}>
+              <span className="legend-dot" style={{ "--slice-color": chartPalette[index % chartPalette.length] } as CSSProperties} />
+              <span title={item.label}>{item.label}</span>
+              <strong>{formatPercent(item.percentage ?? item.value)}</strong>
+              {item.count !== undefined ? <small>{formatNumber(item.count, 0)} registros</small> : null}
+            </div>
+          ))}
         </div>
       </div>
-
-      <button
-        type="button"
-        className="btn-outline chart-download-button"
-        onClick={() => handleDownloadChart(chartId, title)}
-      >
-        Baixar gráfico
-      </button>
-    </div>
+    </ExportableChartCard>
   );
 }
 
-function LineChart({
-  title,
-  data,
-}: {
-  title: string;
-  data: Array<{ label: string; value: number }>;
-}) {
+function LineChart({ title, data }: { title: string; data: Array<{ label: string; value: number }> }) {
   if (data.length === 0) return null;
-
   const width = 560;
   const height = 260;
   const padding = 34;
@@ -375,92 +303,30 @@ function LineChart({
   const max = Math.max(...values);
   const range = max - min || 1;
   const step = data.length > 1 ? (width - padding * 2) / (data.length - 1) : 0;
-
   const points = data.map((item, index) => {
     const x = padding + index * step;
-    const y =
-      height -
-      padding -
-      ((item.value - min) / range) * (height - padding * 2);
-
+    const y = height - padding - ((item.value - min) / range) * (height - padding * 2);
     return { ...item, x, y };
   });
-
   const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const chartId = getChartElementId(title);
 
   return (
-    <div className="chart-card-wrapper">
-      <div
-        id={chartId}
-        className="chart-card line-card"
-        data-chart-export="true"
-        data-chart-title={title}
-      >
-        <h3>{title}</h3>
-
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="line-chart"
-          role="img"
-          aria-label={title}
-        >
-          <line
-            x1={padding}
-            y1={height - padding}
-            x2={width - padding}
-            y2={height - padding}
-            className="axis-line"
-          />
-
-          <line
-            x1={padding}
-            y1={padding}
-            x2={padding}
-            y2={height - padding}
-            className="axis-line"
-          />
-
-          <polyline points={polyline} className="line-path" />
-
-          {points.map((point) => (
-            <g key={point.label}>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r="4"
-                className="line-point"
-              />
-
-              <text
-                x={point.x}
-                y={height - 8}
-                textAnchor="middle"
-                className="axis-label"
-              >
-                {point.label}
-              </text>
-            </g>
-          ))}
-        </svg>
-
-        <div className="line-values">
-          {data.map((item) => (
-            <span key={item.label}>
-              {item.label}: {formatNumber(item.value)}
-            </span>
-          ))}
-        </div>
+    <ExportableChartCard title={title} className="line-card">
+      <svg viewBox={`0 0 ${width} ${height}`} className="line-chart" role="img" aria-label={title}>
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="axis-line" />
+        <line x1={padding} y1={padding} x2={padding} y2={height - padding} className="axis-line" />
+        <polyline points={polyline} className="line-path" />
+        {points.map((point) => (
+          <g key={point.label}>
+            <circle cx={point.x} cy={point.y} r="4" className="line-point" />
+            <text x={point.x} y={height - 8} textAnchor="middle" className="axis-label">{point.label}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="line-values">
+        {data.map((item) => <span key={item.label}>{item.label}: {formatNumber(item.value)}</span>)}
       </div>
-
-      <button
-        type="button"
-        className="btn-outline chart-download-button"
-        onClick={() => handleDownloadChart(chartId, title)}
-      >
-        Baixar gráfico
-      </button>
-    </div>
+    </ExportableChartCard>
   );
 }
 
@@ -764,50 +630,54 @@ function RawResult({ payload }: { payload: Record<string, unknown> }) {
   );
 }
 
+
+async function handleDownloadAllChartsClick() {
+  try {
+    await downloadAllChartsAsZip();
+  } catch (error) {
+    console.error(error);
+    alert("Nenhum gráfico encontrado para exportação ou ocorreu erro ao gerar o ZIP.");
+  }
+}
+
 export function ResultViewer({ result }: Props) {
   if (!result) return null;
 
   const payload = asRecord(result.payload);
   const type = result.analysis_type.toLowerCase();
 
-return (
-  <section className="section-block full-width-card" id="resultados">
-    <div className="result-header">
-      <div>
-        <span className="result-kicker">Resultado da análise</span>
-        <h2>{getAnalysisTitle(result.analysis_type)}</h2>
+  return (
+    <section className="section-block full-width-card" id="resultados">
+      <div className="result-header">
+        <div>
+          <span className="result-kicker">Resultado da análise</span>
+          <h2>{getAnalysisTitle(result.analysis_type)}</h2>
+        </div>
+
+        <div className="result-actions">
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={handleDownloadAllChartsClick}
+          >
+            Baixar todos os gráficos
+          </button>
+        </div>
       </div>
 
-      <div className="result-actions">
-        <button
-          type="button"
-          className="btn-outline"
-          onClick={handleDownloadAllCharts}
-        >
-          Baixar todos os gráficos
-        </button>
-      </div>
-    </div>
+      {type.includes("statistics") || type.includes("statistic") || type.includes("estat") ? (
+        <StatisticsResult payload={payload} />
+      ) : type.includes("kmeans") || type.includes("dbscan") || payload.cluster_counts ? (
+        <ClusteringResult payload={payload} />
+      ) : type.includes("anomal") || type.includes("isolation") || payload.anomaly_count !== undefined ? (
+        <AnomalyResult payload={payload} />
+      ) : type.includes("association") || type.includes("rule") || payload.rules ? (
+        <AssociationRulesResult payload={payload} />
+      ) : (
+        <RawResult payload={payload} />
+      )}
 
-    {type.includes("statistics") ||
-    type.includes("statistic") ||
-    type.includes("estat") ? (
-      <StatisticsResult payload={payload} />
-    ) : type.includes("kmeans") ||
-      type.includes("dbscan") ||
-      payload.cluster_counts ? (
-      <ClusteringResult payload={payload} />
-    ) : type.includes("anomal") ||
-      type.includes("isolation") ||
-      payload.anomaly_count !== undefined ? (
-      <AnomalyResult payload={payload} />
-    ) : type.includes("association") || type.includes("rule") || payload.rules ? (
-      <AssociationRulesResult payload={payload} />
-    ) : (
       <RawResult payload={payload} />
-    )}
-
-    <RawResult payload={payload} />
-  </section>
-);
+    </section>
+  );
 }
