@@ -11,3 +11,4 @@ END $$;
 
 ALTER TABLE datasets ALTER COLUMN user_id SET NOT NULL;
 ALTER TABLE analysis_results ALTER COLUMN user_id SET NOT NULL;
+

@@ -17,3 +17,4 @@ def test_settings_accepts_valid_secret():
     valid = "this_is_a_very_secure_jwt_secret_key_32_chars"
     s = Settings(jwt_secret_key=valid)
     assert s.jwt_secret_key == valid
+
