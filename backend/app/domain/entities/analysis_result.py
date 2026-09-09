@@ -9,4 +9,5 @@ class AnalysisResult:
     dataset_id: str
     analysis_type: str
     payload: dict[str, Any]
+    user_id: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

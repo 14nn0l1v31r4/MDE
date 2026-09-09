@@ -9,4 +9,5 @@ class Dataset:
     stored_path: str
     rows: int
     columns: list[str]
+    user_id: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

@@ -13,6 +13,8 @@ class UploadDatasetUseCase:
 
     def execute(self, filename: str, content: bytes) -> Dataset:
         stored_path = self.storage.save(filename, content)
+    def execute(self, filename: str, content: bytes, user_id: str = "") -> Dataset:
+        stored_path = self.storage.save(filename, content, user_id=user_id)
         df = self.reader.read_csv(stored_path)
         dataset = Dataset(
             id=str(uuid4()),
@@ -20,5 +22,6 @@ class UploadDatasetUseCase:
             stored_path=stored_path,
             rows=int(df.shape[0]),
             columns=[str(column) for column in df.columns],
+            user_id=user_id,
         )
         return self.repository.save(dataset)
