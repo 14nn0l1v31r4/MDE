@@ -10,6 +10,7 @@ from app.domain.exceptions.domain_exceptions import (
     UserAlreadyExistsError,
     UserInactiveError,
 )
+from app.infrastructure.security.rate_limiter import limiter
 from app.interfaces.api.dependencies import (
     get_current_active_user,
     password_hasher,
@@ -30,15 +31,16 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Cadastrar novo usuário",
+    summary="Cadastrar novo usuário (Role sempre 'analyst')",
 )
-def register(request: UserRegisterRequest):
+@limiter.limit("3/hour")
+def register(request: Request, body: UserRegisterRequest):
     use_case = RegisterUserUseCase(user_repository, password_hasher)
     dto = RegisterUserDTO(
-        email=str(request.email),
-        password=request.password,
-        full_name=request.full_name,
-        role=request.role,
+        email=str(body.email),
+        password=body.password,
+        full_name=body.full_name,
+        role="analyst",
     )
     try:
         saved = use_case.execute(dto)
@@ -59,37 +61,15 @@ def register(request: UserRegisterRequest):
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Autenticação de usuário e obtenção de token JWT",
+    summary="Autenticação de usuário via OAuth2 Password Form (Swagger)",
 )
-async def login(
-    request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(),
-):
-    """
-    Suporta autenticação via formulário OAuth2 padrão (Swagger UI) e via JSON.
-    """
-    email = form_data.username
-    password = form_data.password
-
-    # Se chamado via JSON puro (Content-Type: application/json)
-    content_type = request.headers.get("content-type", "")
-    if "application/json" in content_type:
-        try:
-            body = await request.json()
-            email = body.get("email", email)
-            password = body.get("password", password)
-        except Exception:
-            pass
-
-    if not email or not password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Informe e-mail e senha para login",
-        )
-
+@limiter.limit("5/minute")
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     use_case = AuthenticateUserUseCase(user_repository, password_hasher, token_service)
     try:
-        token_dto = use_case.execute(LoginDTO(email=email, password=password))
+        token_dto = use_case.execute(
+            LoginDTO(email=form_data.username, password=form_data.password)
+        )
         return TokenResponse(
             access_token=token_dto.access_token,
             token_type=token_dto.token_type,
@@ -112,10 +92,13 @@ async def login(
     response_model=TokenResponse,
     summary="Login direto com payload JSON",
 )
-def login_json(request: UserLoginRequest):
+@limiter.limit("5/minute")
+def login_json(request: Request, body: UserLoginRequest):
     use_case = AuthenticateUserUseCase(user_repository, password_hasher, token_service)
     try:
-        token_dto = use_case.execute(LoginDTO(email=str(request.email), password=request.password))
+        token_dto = use_case.execute(
+            LoginDTO(email=str(body.email), password=body.password)
+        )
         return TokenResponse(
             access_token=token_dto.access_token,
             token_type=token_dto.token_type,
@@ -147,4 +130,3 @@ def get_me(current_user: User = Depends(get_current_active_user)):
         is_active=current_user.is_active,
         created_at=current_user.created_at,
     )
-

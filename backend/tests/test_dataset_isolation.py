@@ -110,3 +110,23 @@ def test_run_statistics_anti_idor_protection():
     with pytest.raises(DatasetNotFoundError):
         stat_case.execute(ds_user1.id, user_id="user-2")
 
+
+def test_ownerless_dataset_is_never_accessible():
+    repo = InMemoryDatasetRepository()
+    reader = FakeReader()
+
+    # Dataset with empty user_id (orphaned/unowned)
+    ds_orphaned = Dataset(
+        id="orphan-1",
+        filename="orphan.csv",
+        stored_path="/fake/orphan.csv",
+        rows=10,
+        columns=["col1"],
+        user_id="",
+    )
+    repo.save(ds_orphaned)
+
+    preview_case = PreviewDatasetUseCase(repo, reader)
+    with pytest.raises(DatasetNotFoundError):
+        preview_case.execute("orphan-1", user_id="user-1")
+

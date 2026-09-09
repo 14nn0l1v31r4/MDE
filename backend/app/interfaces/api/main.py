@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,10 +14,10 @@ from app.domain.exceptions.domain_exceptions import (
     UserInactiveError,
 )
 from app.infrastructure.database.init_db import init_db
+from app.infrastructure.security.rate_limiter import RateLimitExceeded, limiter
 from app.interfaces.api.routes.analysis_routes import router as analysis_router
 from app.interfaces.api.routes.auth_routes import router as auth_router
 from app.interfaces.api.routes.dataset_routes import router as dataset_router
-from app.interfaces.api.routes.analysis_routes import router as analysis_router
 
 
 @asynccontextmanager
@@ -27,19 +26,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app = FastAPI(
     title=settings.app_name,
     lifespan=lifespan,
     description="Educational Analytics API - Autenticação JWT Obrigatória e Isolamento de Dados",
 )
 
+# Estado do Rate Limiter
+app.state.limiter = limiter
+
 # CORS Seguro
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -57,7 +57,16 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# Global Exception Handlers para proteção de dados internos
+# Rate Limit Exceeded Handler (HTTP 429)
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": "Muitas requisições. Tente novamente mais tarde."},
+    )
+
+
+# Global Exception Handlers
 @app.exception_handler(DatasetNotFoundError)
 async def dataset_not_found_handler(request: Request, exc: DatasetNotFoundError):
     return JSONResponse(
@@ -99,13 +108,12 @@ async def invalid_analysis_handler(request: Request, exc: InvalidAnalysisInputEr
     )
 
 
-# Inclusão de Rotas
+# Rotas
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(dataset_router, prefix=settings.api_prefix)
 app.include_router(analysis_router, prefix=settings.api_prefix)
 
 
-@app.get("/health")
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}

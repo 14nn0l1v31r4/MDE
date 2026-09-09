@@ -157,3 +157,20 @@ def test_get_current_user_use_case(auth_setup):
     assert current_user.email == "me@test.com"
     assert current_user.is_active is True
 
+
+def test_register_user_never_accepts_client_role(auth_setup):
+    repo, hasher, _ = auth_setup
+    use_case = RegisterUserUseCase(repo, hasher)
+
+    result = use_case.execute(
+        RegisterUserDTO(
+            email="attacker@test.com",
+            password="Password123!",
+            full_name="Attacker",
+            role="admin",
+        )
+    )
+
+    assert result.role == "analyst"
+    assert repo.get_by_email("attacker@test.com").role == "analyst"
+
