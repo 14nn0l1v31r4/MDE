@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import logging
+from uuid import uuid4
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +10,6 @@ from app.config.settings import settings
 from app.domain.exceptions.domain_exceptions import (
     DatasetNotFoundError,
     InvalidAnalysisInputError,
-    InvalidCredentialsError,
     UnauthorizedAccessError,
     UserAlreadyExistsError,
     UserInactiveError,
@@ -18,6 +19,9 @@ from app.infrastructure.security.rate_limiter import RateLimitExceeded, limiter
 from app.interfaces.api.routes.analysis_routes import router as analysis_router
 from app.interfaces.api.routes.auth_routes import router as auth_router
 from app.interfaces.api.routes.dataset_routes import router as dataset_router
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -48,12 +52,15 @@ app.add_middleware(
 # Security Headers Middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    request.state.correlation_id = request.headers.get("X-Correlation-ID") or str(uuid4())
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    response.headers["X-Correlation-ID"] = request.state.correlation_id
     return response
 
 
@@ -105,6 +112,23 @@ async def invalid_analysis_handler(request: Request, exc: InvalidAnalysisInputEr
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    correlation_id = getattr(request.state, "correlation_id", str(uuid4()))
+    logger.exception(
+        "Unhandled request error",
+        extra={"correlation_id": correlation_id},
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "Erro interno do servidor.",
+            "correlation_id": correlation_id,
+        },
+        headers={"X-Correlation-ID": correlation_id},
     )
 
 

@@ -1,7 +1,8 @@
 import io
 import pytest
 
-pytest.importorskip("fastapi")
+from fastapi import HTTPException, UploadFile
+from fastapi.datastructures import Headers
 from fastapi.testclient import TestClient
 
 import app.interfaces.api.dependencies as deps
@@ -12,6 +13,7 @@ from app.infrastructure.repositories.in_memory_repositories import (
 )
 from app.infrastructure.storage.local_file_storage import LocalFileStorage
 from app.interfaces.api.main import app
+from app.interfaces.api.routes.dataset_routes import _validate_upload
 
 
 @pytest.fixture(autouse=True)
@@ -61,6 +63,34 @@ def test_security_headers_present(client):
     assert res.headers.get("X-Content-Type-Options") == "nosniff"
     assert res.headers.get("X-Frame-Options") == "DENY"
     assert "Strict-Transport-Security" in res.headers
+
+
+def test_unhandled_errors_return_safe_response():
+    @app.get("/_test/unhandled-error")
+    def unhandled_error():
+        raise RuntimeError("database password should never be returned")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/_test/unhandled-error")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Erro interno do servidor."
+    assert response.json()["correlation_id"]
+    assert "database password" not in response.text
+    assert response.headers["X-Correlation-ID"] == response.json()["correlation_id"]
+
+
+def test_upload_requires_csv_content_type():
+    upload = UploadFile(
+        file=io.BytesIO(b"a,b\n1,2\n"),
+        filename="grades.csv",
+        headers=Headers({"content-type": "application/json"}),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        _validate_upload(upload)
+
+    assert error.value.status_code == 415
 
 
 def test_full_authentication_and_data_isolation_flow(client):

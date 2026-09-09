@@ -10,13 +10,10 @@ from app.domain.exceptions.domain_exceptions import (
     UserAlreadyExistsError,
     UserInactiveError,
 )
+from app.infrastructure.security.audit_logger import audit_request_event
 from app.infrastructure.security.rate_limiter import limiter
-from app.interfaces.api.dependencies import (
-    get_current_active_user,
-    password_hasher,
-    token_service,
-    user_repository,
-)
+from app.interfaces.api import dependencies as deps
+from app.interfaces.api.dependencies import get_current_active_user
 from app.interfaces.api.schemas.auth_schemas import (
     TokenResponse,
     UserLoginRequest,
@@ -35,7 +32,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 )
 @limiter.limit("3/hour")
 def register(request: Request, body: UserRegisterRequest):
-    use_case = RegisterUserUseCase(user_repository, password_hasher)
+    use_case = RegisterUserUseCase(deps.user_repository, deps.password_hasher)
     dto = RegisterUserDTO(
         email=str(body.email),
         password=body.password,
@@ -44,6 +41,12 @@ def register(request: Request, body: UserRegisterRequest):
     )
     try:
         saved = use_case.execute(dto)
+        audit_request_event(
+            request,
+            "auth.register",
+            actor_user_id=saved.id,
+            outcome="success",
+        )
         return UserResponse(
             id=saved.id,
             email=saved.email,
@@ -52,6 +55,7 @@ def register(request: Request, body: UserRegisterRequest):
             is_active=saved.is_active,
         )
     except UserAlreadyExistsError as e:
+        audit_request_event(request, "auth.register", outcome="rejected")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(e),
@@ -65,22 +69,29 @@ def register(request: Request, body: UserRegisterRequest):
 )
 @limiter.limit("5/minute")
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
-    use_case = AuthenticateUserUseCase(user_repository, password_hasher, token_service)
+    use_case = AuthenticateUserUseCase(
+        deps.user_repository,
+        deps.password_hasher,
+        deps.token_service,
+    )
     try:
         token_dto = use_case.execute(
             LoginDTO(email=form_data.username, password=form_data.password)
         )
+        audit_request_event(request, "auth.login", outcome="success")
         return TokenResponse(
             access_token=token_dto.access_token,
             token_type=token_dto.token_type,
         )
     except InvalidCredentialsError as e:
+        audit_request_event(request, "auth.login", outcome="rejected")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
     except UserInactiveError as e:
+        audit_request_event(request, "auth.login", outcome="rejected")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),
@@ -94,22 +105,29 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
 )
 @limiter.limit("5/minute")
 def login_json(request: Request, body: UserLoginRequest):
-    use_case = AuthenticateUserUseCase(user_repository, password_hasher, token_service)
+    use_case = AuthenticateUserUseCase(
+        deps.user_repository,
+        deps.password_hasher,
+        deps.token_service,
+    )
     try:
         token_dto = use_case.execute(
             LoginDTO(email=str(body.email), password=body.password)
         )
+        audit_request_event(request, "auth.login_json", outcome="success")
         return TokenResponse(
             access_token=token_dto.access_token,
             token_type=token_dto.token_type,
         )
     except InvalidCredentialsError as e:
+        audit_request_event(request, "auth.login_json", outcome="rejected")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
     except UserInactiveError as e:
+        audit_request_event(request, "auth.login_json", outcome="rejected")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),

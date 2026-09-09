@@ -60,6 +60,7 @@ yarn-error.log*
 # Arquivos de configuração de IDEs
 .vscode/
 .idea/
+docs/
 
 # Arquivos do sistema operacional
 .DS_Store
