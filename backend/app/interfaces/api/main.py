@@ -14,7 +14,6 @@ from app.domain.exceptions.domain_exceptions import (
     UserAlreadyExistsError,
     UserInactiveError,
 )
-from app.infrastructure.database.init_db import init_db
 from app.infrastructure.security.rate_limiter import RateLimitExceeded, limiter
 from app.interfaces.api.routes.analysis_routes import router as analysis_router
 from app.interfaces.api.routes.auth_routes import router as auth_router
@@ -26,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
     yield
 
 

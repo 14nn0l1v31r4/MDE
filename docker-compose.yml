@@ -1,7 +1,32 @@
 services:
+  migrate:
+    image: python:3.12-slim
+    restart: "no"
+
+    working_dir: /app/backend
+
+    volumes:
+      - .:/app
+
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             alembic upgrade head"
+
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+
+    networks:
+      - database_network
+
   backend:
     image: python:3.12-slim
     restart: unless-stopped
+
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
     working_dir: /app/backend
 
@@ -19,7 +44,9 @@ services:
       - "127.0.0.1:8001:8000"
 
     environment:
-      DATABASE_URL: postgresql+psycopg://analytics:SENHA@postgresql:5432/mining_bd
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
 
     networks:
       - database_network
