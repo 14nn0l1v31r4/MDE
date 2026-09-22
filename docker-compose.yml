@@ -9,8 +9,7 @@ services:
       - .:/app
 
     command: >
-      sh -c "pip install -r requirements.txt &&
-             alembic upgrade head"
+      sh -c "pip install -r requirements.txt && alembic upgrade head"
 
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
