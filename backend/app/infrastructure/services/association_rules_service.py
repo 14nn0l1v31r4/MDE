@@ -29,7 +29,12 @@ class MlxtendAssociationRulesService:
                 "message": "Nenhuma regra encontrada com os parâmetros informados.",
             }
 
-        rules = association_rules(frequent, metric="confidence", min_threshold=min_confidence)
+        rules = association_rules(
+            frequent,
+            num_itemsets=len(df_trans),
+            metric="confidence",
+            min_threshold=min_confidence,
+        )
         rules = rules.sort_values(["lift", "confidence", "support"], ascending=False).head(50)
         output = []
         for _, rule in rules.iterrows():

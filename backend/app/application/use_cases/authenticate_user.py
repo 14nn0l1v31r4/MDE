@@ -6,7 +6,6 @@ from app.domain.exceptions.domain_exceptions import (
     UserInactiveError,
 )
 
-
 class AuthenticateUserUseCase:
     def __init__(
         self,
