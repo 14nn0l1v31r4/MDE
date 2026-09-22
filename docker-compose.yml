@@ -35,10 +35,7 @@ services:
       - backend_uploads:/app/backend/storage/uploads
 
     command: >
-      sh -c "pip install -r requirements.txt &&
-             uvicorn app.interfaces.api.main:app
-             --host 0.0.0.0
-             --port 8000"
+      sh -c "pip install -r requirements.txt && uvicorn app.interfaces.api.main:app --host 0.0.0.0 --port 8000"
 
     ports:
       - "127.0.0.1:8001:8000"
